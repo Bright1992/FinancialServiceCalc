@@ -139,6 +139,7 @@ def tradeStock(stockID, buy_num, trading_style):
     dirlog_2 = 'volumefile/'
     now = datetime.date.today()
     for dayrange in range(0, Read_data_day_num):
+        abspath=sys.path[0]+'\\AlgorithmTrading'
         date = now - datetime.timedelta(days=dayrange)
         volume_file_exist_flag = False
         volume_file = dirlog_2 + 'volume_' + stockID + '_' + str(date.year) + '_' + str(date.month) + '_' + str(

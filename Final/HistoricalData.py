@@ -10,10 +10,10 @@ from numpy import *
 
 import Main
 #imput the global values
-INTERVAL_MINUTE=Main.INTERVAL_MINUTE
-INTERVAL_NUM=Main.INTERVAL_NUM
-Train_day_num=Main.Train_day_num
-Read_data_day_num=Main.Read_data_day_num
+INTERVAL_MINUTE= Main.INTERVAL_MINUTE
+INTERVAL_NUM= Main.INTERVAL_NUM
+Train_day_num= Main.Train_day_num
+Read_data_day_num= Main.Read_data_day_num
 
 def factorial(num):
     if (num==0):
