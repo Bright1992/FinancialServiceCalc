@@ -167,7 +167,7 @@ class cdf_graph(QWidget):
 if __name__ == '__main__':
     year=2016;month=11;day=8;stock='sh600016'
     app = QApplication(sys.argv)
-    ui = graph(year=year,month=month,day=day,stock=stock,alg='TWAP')
+    ui = graph(year=year,month=month,day=day,stock=stock,alg='TVWAP')
     ui2 = cdf_graph(year=year,month=month,day=day,stock=stock)
     ui.resize(1500,800)
     ui.setWindowTitle('Trade Simulation')

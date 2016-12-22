@@ -57,6 +57,7 @@ def trading_VWAP(trading_schedule, trading_data, trading_count, stockID, buy_num
     total_buy = 0
     total_cost = 0
     buy_remainder_total = buy_num
+    sched_pool=[]
     for i in range(0, count):
         trading_volume_interval = trading_schedule_data[i]
         if (trading_volume_interval == 0):
@@ -72,7 +73,8 @@ def trading_VWAP(trading_schedule, trading_data, trading_count, stockID, buy_num
                     total_cost += cost
                     buy_record_item = [trading_data[j + k][0], trading_data[j + k][1], trading_volume_per_5s, cost,
                                        buy_remainder_total]
-                    print buy_record_item
+                    #print buy_record_item
+                    sched_pool.append(buy_record_item)
                     buy_record.append(buy_record_item)
                     total_buy += trading_volume_per_5s
                     buy_remainder_total = buy_remainder_total - trading_volume_per_5s
@@ -83,7 +85,7 @@ def trading_VWAP(trading_schedule, trading_data, trading_count, stockID, buy_num
                         trading_volume_per_5s = buy_remainder
                 break
     print total_buy
-    return
+    return sched_pool
 
 
 def trading_TWAP(trading_data, trading_nums, stockID, buy_num, trading_style):
@@ -108,11 +110,13 @@ def trading_TWAP(trading_data, trading_nums, stockID, buy_num, trading_style):
     total_cost = 0
     buy_record = []
     buy_remainder = buy_num
+    sched_pool=[]
     for i in range(TWAP_collect_trading_data_nums, trading_nums):
         cost = trading_volume_per_5s * (int)((float)(trading_data[i][1]) * 100)
         total_cost += cost
         buy_record_item = [trading_data[i][0], trading_data[i][1], trading_volume_per_5s, cost, buy_remainder]
-        print buy_record_item
+        #print buy_record_item
+        sched_pool.append(buy_record_item)
         buy_record.append(buy_record_item)
         if (trading_volume_per_5s == buy_remainder):
             break
@@ -127,7 +131,7 @@ def trading_TWAP(trading_data, trading_nums, stockID, buy_num, trading_style):
     # print total_cost
     print "Our TWAP is: " + (str)((float)(total_cost) / buy_num / 100)
     print "Acutal TWAP is " + (str)(acutal_TWAP)
-    return
+    return sched_pool
 
 
 def tradeStock(stockID, buy_num, trading_style):
