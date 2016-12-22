@@ -50,7 +50,7 @@ class graph(QWidget):
                 x02.append(ele)
                 y02.append(y[c])
             c=c+1
-        
+
         if alg=='TVWAP':
             ymax=max(y);ymin=min(y)
             x1 = [ele+interval*0.1 for ele in x]
@@ -83,7 +83,7 @@ class graph(QWidget):
             y2 = []
             for ele in range(len(y1)):
                 y2.append(s/len(y1)/5)
-        
+
         #ratio=0.3
         #y2 = [ele*sum(y1)*ratio for ele in y2]
         ax1=figure1.add_subplot(111)
@@ -167,7 +167,7 @@ class cdf_graph(QWidget):
 if __name__ == '__main__':
     year=2016;month=11;day=8;stock='sh600016'
     app = QApplication(sys.argv)
-    ui = graph(year=year,month=month,day=day,stock=stock,alg='TVWAP')
+    ui = graph(year=year,month=month,day=day,stock=stock,alg='TWAP')
     ui2 = cdf_graph(year=year,month=month,day=day,stock=stock)
     ui.resize(1500,800)
     ui.setWindowTitle('Trade Simulation')
