@@ -5,6 +5,7 @@ from PyQt4.QtGui import *
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as figureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolBar
+import matplotlib.animation as animation
 from matplotlib.dates import date2num,num2date
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -20,6 +21,7 @@ from getRealtimeData import getRealtimeData,delta2num
 from Trade import *
 import time
 from const import *
+from PyQt4.QtSql import *
 
 alldays = DayLocator()
 months = MonthLocator()
@@ -111,21 +113,21 @@ class figure(QWidget):
         self.interval=del2num(trade_interval)
 
     def update2(self,data,xrange):
+        return
         plt.figure(self.fig_num)
-        # print(data[2])
+        # print(len(data[0]))
+        #self.clear()
+        self.ax1.clear()
+        if self.type!=figure.CDF_PLOT:
+            self.ax2.clear()
         if self.type==figure.SCHED_PLOT:
             # print(data[0])
             # print(data[2])
-            self.ax1.xaxis.set_major_locator(minutes)
-            self.ax1.xaxis.set_major_formatter(minute_formatter)
-            if len(self.ax1.lines)>0:
-                self.ax1.lines.pop(0)
-
             xmax=max(del2num(xrange*60)+data[0][0],data[0][-1])
             xmin=max(data[0][0],data[0][-1]-del2num(xrange*60))
             plt.xlim([xmin-self.interval*0.2,xmax+self.interval*0.2])
-            plt.axes(self.ax1)
 
+            plt.axes(self.ax1)
             x1=[t-self.interval*0.1 for t in data[0]]
             bar_sched = self.ax1.bar(x1, data[1], width=self.interval * 0.2, color=[1, 0.4, 0.6], label='Order Size')
             plt.ylim([0,max(data[1])*1.5])
@@ -133,18 +135,15 @@ class figure(QWidget):
             minp=min(data[2])
             maxp=max(data[2])
             dlt=float(maxp-minp)
-            plt.ylim([max(0,minp-3*dlt),maxp+dlt])
+            plt.ylim([max(0,minp-3*dlt-0.1),maxp+dlt+0.1])
             self.ax2.plot(data[0],data[2],color='blue')
             self.figure1.autofmt_xdate()
             # self.figure1.show()
             self.canvas1.draw()
+            # plt.show()
         elif self.type == figure.TOTAL_PLOT:
             # print(data[0])
             # print(data[2])
-            self.ax1.xaxis.set_major_locator(minutes)
-            self.ax1.xaxis.set_major_formatter(minute_formatter)
-            if len(self.ax1.lines) > 0:
-                self.ax1.lines.pop(0)
 
             xmax = max(del2num(xrange * 60) + data[0][0], data[0][-1])
             xmin = max(data[0][0], data[0][-1] - del2num(xrange * 60))
@@ -158,19 +157,18 @@ class figure(QWidget):
             minp = min(data[2])
             maxp = max(data[2])
             dlt = float(maxp - minp)
-            plt.ylim([max(0, minp - 3 * dlt), maxp + dlt])
+            plt.ylim([max(0, minp - 3 * dlt - 0.1), maxp + dlt + 0.1])
             self.ax2.plot(data[0], data[2], color='blue')
             self.figure1.autofmt_xdate()
             # self.figure1.show()
             self.canvas1.draw()
-
         else:
+            if len(self.ax1.lines)>0:
+                self.ax1.lines.pop(0)
             self.ax1.xaxis.set_major_locator(minutes)
             self.ax1.xaxis.set_major_formatter(minute_formatter)
-            if len(self.ax1.lines) > 0:
-                self.ax1.lines.pop(0)
             xmax = max(del2num(xrange * 60) + data[0][0], data[0][-1])
-            xmin = max(data[0][0], data[0][-1] - del2num(xrange * 60))
+            xmin = data[0][0]
             plt.xlim([xmin - self.interval * 0.2, xmax + self.interval * 0.2])
             plt.ylim([0,1])
             self.ax1.plot(data[0],data[1],color='blue')
@@ -183,18 +181,16 @@ class figure(QWidget):
         plt.clf()
         self.init_figure()
 
-
-
 class console(QWidget):
     def __init__(self,parent=None,stock='0',year=0,month=0,day=0,alg='TVWAP'):
         super(console,self).__init__(parent)
         self.draw_layout()
-        algs=['TWAP','VWAP(10 day)','VWAP(5 day)','VWAP(binary)','VWAP(exp)']
-        self.set_alg(algs)
+        self.algs=['TWAP','VWAP(10 day)','VWAP(5 day)','VWAP(binary)','VWAP(exp)']
+        self.set_alg(self.algs)
         self.interval=50
-        self.trade_interval=30
+        self.trade_interval=60
         self.init_canvas()
-        self.set_speed_ratio(60)
+        self.set_speed_ratio(3600)
         self.init_timer(self.interval)
 
         self.readyFlag=False
@@ -216,6 +212,31 @@ class console(QWidget):
         self.text_ordersize.setText("2000")
         self.text_alg.setCurrentIndex(2)
         self.readyFlag=True
+
+    def init_tbview(self):
+        self.model=QStandardItemModel()
+        self.model.setHorizontalHeaderItem(0,QStandardItem("Time"))
+        self.model.setHorizontalHeaderItem(1,QStandardItem("Volume"))
+        self.model.setHorizontalHeaderItem(2,QStandardItem("Share"))
+        self.model.setHorizontalHeaderItem(3,QStandardItem("Price"))
+        self.model.setHorizontalHeaderItem(4,QStandardItem("Total Value"))
+        self.model.setHorizontalHeaderItem(5,QStandardItem("Finished"))
+        self.tbView_rtinfo = QTableView()
+        self.tbView_rtinfo.setFixedHeight(400)
+        self.tbView_rtinfo.setFixedWidth(600)
+        self.tbView_rtinfo.setShowGrid(True)
+        self.tbView_rtinfo.setModel(self.model)
+        # palette = QPalette()
+        # palette.setColor(QPalette.Background,QColor(190,190,190))
+        # self.tbView_rtinfo.setPalette(palette)
+        self.tbView_rtinfo.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbView_rtinfo.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        # self.model.setItem(0,0,QStandardItem("0"))
+        # self.model.setItem(0, 1, QStandardItem(0))
+        # self.model.setItem(0, 2, QStandardItem(0))
+        # self.tbView_rtinfo.verticalHeader()
+        # self.tbView_rtinfo.horizontalHeader()
+        # self.tbView_rtinfo.show()
 
     def draw_layout(self):
         self.label_sid=QLabel("Stock ID:")
@@ -296,13 +317,11 @@ class console(QWidget):
         self.canvas_cdf.setMaximumHeight(475)
         self.canvas_cdf.setFixedWidth(700)
 
-        self.textBsr_rtinfo = QTextBrowser()
-        self.textBsr_rtinfo.setFixedHeight(400)
-        self.textBsr_rtinfo.setFixedWidth(500)
+        self.init_tbview()
 
         self.hLayout5=QHBoxLayout()
         self.hLayout5.addStretch()
-        self.hLayout5.addWidget(self.textBsr_rtinfo)
+        self.hLayout5.addWidget(self.tbView_rtinfo)
         self.hLayout5.addStretch()
 
         self.vLayout_rtinfo=QVBoxLayout()
@@ -333,6 +352,7 @@ class console(QWidget):
         color=QColor(190,190,190)
         palette = QPalette()
         palette.setColor(QPalette.Window,color)
+        # palette.setColor(QPalette.Text,color)
         self.setPalette(palette)
 
     def set_alg(self,algs):
@@ -358,6 +378,10 @@ class console(QWidget):
         self.total_time = 0
         self.finished = 0
         self.cdf_array=[]
+        self.cdf_time=[]
+        self.total_value=0
+        self.issue_num=0
+        self.model.removeRows(0,self.model.rowCount())
 
     def check_state(self):
         if self.readyFlag==True and self.runningFlag==False:
@@ -366,8 +390,14 @@ class console(QWidget):
             self.btn_start.setEnabled(False)
         if(self.runningFlag==True):
             self.btn_stop.setEnabled(True)
+            self.text_alg.setEnabled(False)
+            self.text_sid.setEnabled(False)
+            self.text_ordersize.setEnabled(False)
         else:
             self.btn_stop.setEnabled(False)
+            self.text_alg.setEnabled(True)
+            self.text_sid.setEnabled(True)
+            self.text_ordersize.setEnabled(True)
 
     def set_speed_ratio(self,ratio):
         self.sec_per_interval=ratio*self.interval/1000.0
@@ -415,6 +445,8 @@ class console(QWidget):
         self.timer.stop()
         self.runningFlag=False
         self.check_state()
+        QMessageBox.information(self,"Stopped","Trade Stopped!")
+        self.update_summary()
 
     @pyqtSlot()
     def checkReady(self):
@@ -428,6 +460,12 @@ class console(QWidget):
         self.check_state()
 
     def updateCanvas(self):
+        if self.idx[0]>=len(self.sched_data):
+            print("No Schedule Issued")
+            return
+        if self.idx[1]>=len(self.total_data):
+            print("No Trading Data")
+            return
         self.total_time+=self.sec_per_interval  #sec_per_interval must be less than trade_interval!!
         if floor(self.total_time/self.trade_interval)>floor((self.total_time-self.sec_per_interval)/self.trade_interval):
             if self.cur_total_N==0:
@@ -455,13 +493,10 @@ class console(QWidget):
             self.sched_price.append(self.cur_sched_price)
             self.total_vol.append(self.cur_total_vol)
             self.total_price.append(self.cur_total_price)
-            self.finished += self.sched_vol[-1]
-            self.cdf_array.append(self.finished/int(self.ordersize))
 
             self.canvas_sched.update2([self.sched_time,self.sched_vol,self.sched_price],self.xrange)
             self.canvas_rt.update2([self.sched_time,self.total_vol,self.sched_price],self.xrange)
-            self.canvas_cdf.update2([self.sched_time,self.cdf_array],self.xrange*10)
-            
+
             self.cur_sched_vol=0
             self.cur_sched_price=0
             self.cur_sched_N=0
@@ -470,19 +505,69 @@ class console(QWidget):
             self.cur_total_price=0
 
 
+        #if
         while self.idx[0]<len(self.sched_data) and time2sec(self.sched_data[self.idx[0]][0])<=self.total_time:
             self.cur_sched_vol+=float(self.sched_data[self.idx[0]][2])
-            self.idx[0]+=1
             self.cur_sched_N+=float(self.sched_data[self.idx[0]][2])
             self.cur_sched_price+=float(self.sched_data[self.idx[0]][1])*float(self.sched_data[self.idx[0]][2])
+            self.cdf_time.append(sec2num(self.year,
+                                         self.month,
+                                         self.day,
+                                         time2sec(self.sched_data[self.idx[0]][0])))
+            self.finished += float(self.sched_data[self.idx[0]][2])
+            self.cdf_array.append(self.finished/int(self.ordersize))
+            #t1=time.time()
+            self.canvas_cdf.update2([self.cdf_time,self.cdf_array],self.xrange*10)
+            #print(time.time()-t1)
+            if self.finished>=float(self.ordersize):
+                self.onOrderFinished()
+            self.total_value+=SHARE_PER_VOLUME*float(self.sched_data[self.idx[0]][1])*float(self.sched_data[self.idx[0]][2])
+            self.update_list()
+            self.idx[0]+=1
 
         while self.idx[1] < len(self.total_data) and time2sec(self.total_data[self.idx[1]][0]) <= self.total_time:
             self.cur_total_vol+=float(self.total_data[self.idx[1]][2])
-            self.idx[1]+=1
             self.cur_total_N+=float(self.total_data[self.idx[1]][2])
             self.cur_total_price+=float(self.total_data[self.idx[1]][1])*float(self.total_data[self.idx[1]][2])
+            self.idx[1]+=1
 
-    def misc(self,stock='0',year=0,month=0,day=0,alg='TVWAP'):
+    @pyqtSlot()
+    def onOrderFinished(self):
+        QMessageBox.information(self,"Information","Trade Finished!","OK")
+        self.update_summary()
+        self.onButtonStopClicked()
+
+    def update_summary(self):
+        summary=""
+        summary+="Stock ID: %s\n"%self.sid.toUpper()
+        summary+="Trade Algorithm: %s\n"%self.algs[self.alg-1]
+        summary+="Planned Volume: %s\n"%self.ordersize
+        summary+="Performed Volume: %.0f\n"%self.finished
+        summary+="Average Price: %.2f\n"%(self.total_value/self.finished/SHARE_PER_VOLUME)
+        summary+="Total Value: %.2f\n"%self.total_value
+        self.textBsr_summary.setText(summary)
+
+    def update_list(self):
+        self.model.setItem(self.issue_num,0,QStandardItem("%s"%self.sched_data[self.idx[0]][0]))
+        self.model.setItem(self.issue_num,1,QStandardItem("%d"%int(self.sched_data[self.idx[0]][2])))
+        self.model.setItem(self.issue_num,2,QStandardItem("%d"%(int(self.sched_data[self.idx[0]][2])*SHARE_PER_VOLUME)))
+        self.model.setItem(self.issue_num,3,QStandardItem("%.2f"%float(self.sched_data[self.idx[0]][1])))
+        self.model.setItem(self.issue_num,4,QStandardItem("%.2f"%(float(self.sched_data[self.idx[0]][1])*int(self.sched_data[self.idx[0]][2])*SHARE_PER_VOLUME)))
+        self.model.setItem(self.issue_num,5,QStandardItem("%d/%d"%(int(self.finished),int(self.ordersize))))
+        self.model.item(self.issue_num, 0).setTextAlignment(Qt.AlignCenter)
+        self.model.item(self.issue_num, 1).setTextAlignment(Qt.AlignCenter)
+        self.model.item(self.issue_num, 2).setTextAlignment(Qt.AlignCenter)
+        self.model.item(self.issue_num, 3).setTextAlignment(Qt.AlignCenter)
+        self.model.item(self.issue_num, 4).setTextAlignment(Qt.AlignCenter)
+        self.model.item(self.issue_num, 5).setTextAlignment(Qt.AlignCenter)
+        self.issue_num+=1
+
+    def getSechedule(self):
+        self.trade_data=hd.updateStock(str(self.sid))
+        self.trade_style=0  #not implemented yet
+        return td.tradeStock(self.sid,int(self.ordersize),self.trade_style,self.alg)
+
+    def misc(self, stock='0', year=0, month=0, day=0, alg='TVWAP'):
         interval = 5
         self.data = getRealtimeData(stock, year, month, day, interval=interval)
         interval = delta2num(interval)
@@ -516,7 +601,7 @@ class console(QWidget):
             s = sum(y1)
             y1max = max(y1)
             x2 = [ele + interval * 0.5 for ele in x]
-            #print(len(x2))
+            # print(len(x2))
             # y2 = getOrderSize(stock)
             y2 = [ele * s / 10 for ele in y2]
             y1max = max(y1max, max(y2))
@@ -528,7 +613,7 @@ class console(QWidget):
             s = sum(y1)
             y1max = max(y1)
             x2 = [ele + interval * 0.5 for ele in x]
-            #print(len(x2))
+            # print(len(x2))
             y2 = self.__getOrderSize()
         elif alg == 'TWAP':
             ymax = max(y);
@@ -539,7 +624,7 @@ class console(QWidget):
             y1 = [ele for ele in y1]
             y1max = max(y1)
             x2 = [ele + interval * 0.5 for ele in x]
-            #print(len(x2))
+            # print(len(x2))
             y2 = []
             for ele in range(len(y1)):
                 y2.append(s / len(y1) / 5)
@@ -584,11 +669,6 @@ class console(QWidget):
         # rightLayout.addWidget(self.canvas2)
         # rightLayout.addWidget(self.toolbar2)
 
-    def getSechedule(self):
-        self.trade_data=hd.updateStock(self.sid)
-        self.trade_style=0  #not implemented yet
-        return td.tradeStock(self.sid,int(self.ordersize),self.trade_style,self.alg)
-
 class cdf_graph(QWidget):
     def __init__(self,parent=None,year=0,month=0,day=0,stock='0'):
         super(cdf_graph,self).__init__(parent)
@@ -624,7 +704,7 @@ class cdf_graph(QWidget):
         layout.addLayout(rightLayout)
         rightLayout.addWidget(self.canvas2)
         rightLayout.addWidget(self.toolbar2)
-    
+
 if __name__ == '__main__':
     # print(del2num(1))
     year=2016;month=11;day=11;stock='sh601988'

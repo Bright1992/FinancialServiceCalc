@@ -1,35 +1,25 @@
-import sys
-from PyQt4 import QtGui
+# -*- coding: utf-8 -*-   
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+fig = plt.figure()
+axes1 = fig.add_subplot(111)
+line, = axes1.plot(np.random.rand(10))
 
 
-class GridLayout(QtGui.QWidget):
+# 因为update的参数是调用函数data_gen,所以第一个默认参数不能是framenum
+def update(data):
+    line.set_ydata(data)
+    return line,
 
-    def __init__(self):
-        QtGui.QWidget.__init__(self)
 
-        self.setWindowTitle('grid layout')
+# 每次生成10个随机数据
+def data_gen():
+    while True:
+        yield np.random.rand(10)
 
-        names = ['1', '2', '3', '4', '5', '6', '7', '8',
-            '9', '10', '11', '12', '13', '14', '15', '16',
-            '17', '18', '19', '20']
 
-        grid = QtGui.QGridLayout()
-
-        j = 0
-        pos = [(0, 0), (0, 1), (0, 2), (0, 3),
-                (1, 0), (1, 1), (1, 2), (1, 3),
-                (2, 0), (2, 1), (2, 2), (2, 3),
-                (3, 0), (3, 1), (3, 2), (3, 3 ),
-                (4, 0), (4, 1), (4, 2), (4, 3)]
-
-        for i in names:
-            bsr = QtGui.QTextBrowser()
-            grid.addWidget(bsr, pos[j][0], pos[j][1])
-            j = j + 1
-
-        self.setLayout(grid)
-
-app = QtGui.QApplication(sys.argv)
-ex = GridLayout()
-ex.show()
-sys.exit(app.exec_())
+ani = animation.FuncAnimation(fig, update, data_gen, interval=100)
+plt.show()  
