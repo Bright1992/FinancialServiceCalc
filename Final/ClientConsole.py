@@ -181,6 +181,26 @@ class figure(QWidget):
         plt.clf()
         self.init_figure()
 
+
+class plotter(QThread):
+    def __init__(self, parent=None):
+        super(plotter, self).__init__(parent)
+        self.plotting = False
+
+    def __del__(self):
+        self.plotting = False
+
+    def run(self):
+        self.exec_()
+
+    @pyqtSlot(figure, list, int)
+    def plotFunc(self, fig, data, xrange):
+        fig.update2(data, xrange)
+
+    @pyqtSlot(figure)
+    def clearFig(self, fig):
+        fig.clear()
+
 class console(QWidget):
     def __init__(self,parent=None,stock='0',year=0,month=0,day=0,alg='TVWAP'):
         super(console,self).__init__(parent)
@@ -361,6 +381,7 @@ class console(QWidget):
             self.text_alg.addItem(alg)
 
     def init_canvas(self):
+        self.plot_thread=plotter()
         self.cur_sched_vol=0
         self.sched_vol=[]
         self.sched_time=[]
@@ -429,15 +450,16 @@ class console(QWidget):
         self.year=int(self.trade_date.year)
         self.month=int(self.trade_date.month)
         self.day=int(self.trade_date.day)
-        self.canvas_sched.clear()
+        # self.canvas_sched.clear()
         # self.canvas_rt.clear()
         # self.canvas_cdf.clear()
-        self.timer.start()
-        self.runningFlag=True
         self.check_state()
         self.canvas_sched.setSid(self.sid)
         self.canvas_rt.setSid(self.sid)
         self.canvas_cdf.setSid(self.sid)
+        self.plot_thread.start()
+        self.timer.start()
+        self.runningFlag=True
 
     @pyqtSlot()
     def onButtonStopClicked(self):
