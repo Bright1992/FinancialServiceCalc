@@ -149,7 +149,7 @@ class figure(QWidget):
             plt.axes(self.ax1)
             x1=data[0]
             plt.xlabel('Time', fontsize=15)
-            self.ax1.bar(x1, data[1], width=self.interval * 0.5, color=[1, 0.4, 0.6], label='Order Size',align='center')
+            bar_order=self.ax1.bar(x1, data[1], width=self.interval * 0.5, color=[1, 0.4, 0.6], label='Order Size',align='center')
             plt.ylabel('Volume', fontsize=15)
             plt.ylim([0,max(data[1])*1.5])
             plt.axes(self.ax2)
@@ -158,8 +158,9 @@ class figure(QWidget):
             maxp=max(data[2])
             dlt=float(maxp-minp)
             plt.ylim([max(0,minp-3*dlt-0.1),maxp+dlt+0.1])
-            self.ax2.plot(data[0],data[2],color='blue')
+            line_price,=self.ax2.plot(data[0],data[2],color='blue',label='Price')
             self.figure1.autofmt_xdate()
+            plt.legend(handles=(line_price, bar_order), loc='upper right', ncol=3)
             # self.figure1.show()
             self.canvas1.draw()
             # plt.show()
@@ -178,7 +179,7 @@ class figure(QWidget):
             self.ax1.xaxis.set_major_formatter(self.xformatter)
 
             x1 = data[0]
-            self.ax1.bar(x1, data[1], width=self.interval * 0.5, color='c', label='Order Size',align='center')
+            bar_total=self.ax1.bar(x1, data[1], width=self.interval * 0.5, color='c', label='Order Size',align='center')
             plt.ylim([0, max(data[1]) * 1.5])
             plt.axes(self.ax2)
             plt.ylabel('Price', fontsize=15)
@@ -186,8 +187,9 @@ class figure(QWidget):
             maxp = max(data[2])
             dlt = float(maxp - minp)
             plt.ylim([max(0, minp - 3 * dlt - 0.1), maxp + dlt + 0.1])
-            self.ax2.plot(data[0], data[2], color='blue')
+            line_price,=self.ax2.plot(data[0], data[2], color='blue',label='Price')
             self.figure1.autofmt_xdate()
+            plt.legend(handles=(line_price, bar_total), loc='upper right', ncol=3)
             # self.figure1.show()
             self.canvas1.draw()
         else:
@@ -270,9 +272,9 @@ class console(QMainWindow):
         self.text_sid.textEdited.connect(self.checkReady)
         self.text_ordersize.textEdited.connect(self.checkReady)
         self.text_alg.currentIndexChanged.connect(self.checkReady)
-        self.plot_thread=backend_thread()
-        # self.plot_thread.start()
-        console.server.moveToThread(self.plot_thread)
+        self.server_thread=backend_thread()
+        # self.server_thread.start()
+        console.server.moveToThread(self.server_thread)
         self.plotReq.connect(console.server.plotFunc)
         self.getSchedReq.connect(console.server.getSchedule)
         console.server.schedPrepared.connect(self.onSchedPrepared)
@@ -428,7 +430,7 @@ class console(QMainWindow):
             self.text_alg.addItem(alg)
 
     def init_param(self):
-        # self.connect(self,SIGNAL("plotReq()"),self.plot_thread,SLOT("plotFunc()"))
+        # self.connect(self,SIGNAL("plotReq()"),self.server_thread,SLOT("plotFunc()"))
         self.cur_sched_vol=0
         self.sched_vol=[]
         self.sched_time=[]
@@ -494,7 +496,7 @@ class console(QMainWindow):
         self.textBsr_summary.setText("")
         self.sched_data=None
         self.init_param()
-        self.plot_thread.start()
+        self.server_thread.start()
         self.init_canvas()
         self.getSchedReq.emit(str(self.sid),int(self.ordersize),self.alg)
         self.total_data = None
@@ -508,8 +510,8 @@ class console(QMainWindow):
     def onButtonStopClicked(self):
         # QMessageBox.information(self,"stop",'ok')
         self.timer.stop()
-        self.plot_thread.quit()
-        self.plot_thread.wait()
+        self.server_thread.quit()
+        self.server_thread.wait()
         self.runningFlag=False
         self.check_state()
         self.statusBar().showMessage("Trade Has Been Stopped")
@@ -637,12 +639,17 @@ class console(QMainWindow):
     def onOrderFinished(self):
         self.update_summary()
         self.timer.stop()
-        self.plot_thread.quit()
-        self.plot_thread.wait()
+        self.server_thread.quit()
+        self.server_thread.wait()
         self.runningFlag = False
         self.check_state()
         self.update_summary()
         QMessageBox.information(self,"Information","Trade Finished!","OK")
+    
+    def closeEvent(self, *args, **kwargs):
+        self.timer.stop()
+        self.server_thread.exit()
+        self.server_thread.wait()
 
     def update_summary(self):
         summary=""
