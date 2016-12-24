@@ -175,9 +175,8 @@ def trainVWAP_line_regression(stockID):
         train_file.write("\n")
 
 
-
 def calculateVolume(filename, output_file):
-    #volume result is zheng xu de 
+    #volume result is zheng xu de
     output_file = 'volumefile/volume_' + output_file + '.txt'
     read_file = open(filename, 'rU')
     f = open(filename)
@@ -185,6 +184,10 @@ def calculateVolume(filename, output_file):
     actual_total_volume = 0
     if judgeholiday == '<script language="javascript">':
         print 'Has no tradings.'
+        f.close()
+        read_file.close()
+        # os.remove(filename)
+        return 0
     else:
         count = len(read_file.readlines())-1
         count_volume = []
@@ -216,8 +219,8 @@ def calculateVolume(filename, output_file):
                 if (time_now >= time_string):
                     count_volume[INTERVAL_NUM - index] += int(value[3])
                     break
-            #print count_volume
-            #time.sleep(3)
+                    #print count_volume
+                    #time.sleep(3)
         #print count_volume
         #time.sleep(10)
         count_volume_percentage = [] * INTERVAL_NUM
@@ -236,6 +239,7 @@ def calculateVolume(filename, output_file):
             file_object.write("\n")
         file_object.close()
     f.close()
+    return 1
                 
                 
 
@@ -252,23 +256,39 @@ def updateStock(stockID):
     now = datetime.date.today()
     #print now
     todayfile = os.path.exists(dirlog + shareid + '_' + str(now.year) + '_' + str(now.month) + '_' + str(now.day) + '.txt')
+    days=0
     if todayfile:
-        print 'No need to update MySQL.'
-        trainVWAP_line_regression(stockID)
-    else:
-        print 'Updating MySQL'
-        for dayrange in range(0, Read_data_day_num):
-            date = now - datetime.timedelta(days=dayrange)
-            print date
-            url2 = str1 + str(date) + str2 + shareid
-            print url2
-            insertfilename2 = shareid + '_' + str(date.year) + '_' + str(date.month) + '_' + str(date.day)
-            localDirinsert2 = dirlog+insertfilename2+'.txt'
-            spiderData(url2, localDirinsert2)
-            calculateVolume(localDirinsert2, insertfilename2)
-            #if the day before current day has data, then break
-            date = now - datetime.timedelta(days=(dayrange+1))
-            hisfile = os.path.exists(dirlog + shareid + '_' + str(date.year) + '_' + str(date.month) + '_' + str(date.day) + '.txt')
-            if hisfile:
+        filename=dirlog + shareid + '_' + str(now.year) + '_' + str(now.month) + '_' + str(now.day) + '.txt'
+        f = open(filename)
+        judgeholiday = f.readline().decode('gbk').strip()
+        f.close()
+        if not judgeholiday == '<script language="javascript">':
+            print 'No need to update MySQL.'
+            trainVWAP_line_regression(stockID)
+            return 0
+
+    print 'Updating MySQL'
+    for dayrange in range(0, Read_data_day_num):
+        date = now - datetime.timedelta(days=dayrange)
+        print date
+        url2 = str1 + str(date) + str2 + shareid
+        print url2
+        insertfilename2 = shareid + '_' + str(date.year) + '_' + str(date.month) + '_' + str(date.day)
+        localDirinsert2 = dirlog+insertfilename2+'.txt'
+        spiderData(url2, localDirinsert2)
+        days+=calculateVolume(localDirinsert2, insertfilename2)
+        #if the day before current day has data, then break
+        date = now - datetime.timedelta(days=(dayrange+1))
+        hisfile = os.path.exists(dirlog + shareid + '_' + str(date.year) + '_' + str(date.month) + '_' + str(date.day) + '.txt')
+        if hisfile:
+            filename = dirlog + shareid + '_' + str(date.year) + '_' + str(date.month) + '_' + str(date.day) + '.txt'
+            f = open(filename)
+            judgeholiday = f.readline().decode('gbk').strip()
+            f.close()
+            if not judgeholiday == '<script language="javascript">':
+                days=1
                 break
-        trainVWAP_line_regression(stockID)
+    if days==0:
+        return -1
+    trainVWAP_line_regression(stockID)
+    return 0

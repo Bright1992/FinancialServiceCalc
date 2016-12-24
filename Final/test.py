@@ -12,6 +12,7 @@ line, = axes1.plot(np.random.rand(10))
 # 因为update的参数是调用函数data_gen,所以第一个默认参数不能是framenum
 def update(data):
     line.set_ydata(data)
+
     return line,
 
 

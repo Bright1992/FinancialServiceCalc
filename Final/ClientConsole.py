@@ -5,14 +5,14 @@ from PyQt4.QtGui import *
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as figureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolBar
-import matplotlib.animation as animation
+# import matplotlib.animation as animation
 from matplotlib.dates import date2num,num2date
 from datetime import datetime
 import matplotlib.pyplot as plt
 import sys
 
 from matplotlib.dates import DateFormatter
-from matplotlib.dates import DayLocator,MinuteLocator
+from matplotlib.dates import DayLocator,MinuteLocator,SecondLocator
 from matplotlib.dates import MonthLocator
 
 from HistoricalData import updateStock
@@ -69,7 +69,20 @@ class figure(QWidget):
         self.canvas1.draw()
         self.layout=QHBoxLayout(self)
         self.layout.addWidget(self.canvas1)
-
+        if self.type!=figure.CDF_PLOT:
+            if trade_interval<60:
+                self.xlocater=SecondLocator(bysecond=range(0,60,trade_interval))
+                self.xformatter = DateFormatter("%H:%M:%S")
+            else:
+                self.xlocater=MinuteLocator(byminute=range(0,60,trade_interval/60))
+                self.xformatter= DateFormatter("%H:%M")
+        else:
+            if trade_interval<5:
+                self.xlocater = SecondLocator(bysecond=range(0, 60, 12*trade_interval))
+                self.xformatter = DateFormatter("%H:%M:%S")
+            else:
+                self.xlocater = MinuteLocator(byminute=range(0, 60, trade_interval / 5))
+                self.xformatter = DateFormatter("%H:%M")
     def init_figure(self):
         self.figure1=plt.figure(self.fig_num)
         self.ax1 = self.figure1.add_subplot(111)
@@ -83,12 +96,15 @@ class figure(QWidget):
         }
         # plt.title("Trade Volume", fontsize=20, family='TimesNewRoman')
         if self.type!=figure.CDF_PLOT:
-            self.title="Trade Volume"
+            if self.type==figure.SCHED_PLOT:
+                self.title="Order Volume"
+            else:
+                self.title="Total Order Volume"
             plt.ylabel('Volume', fontsize=15)
             self.y1max = 10
             plt.ylim([0, self.y1max * 1.5])
         else:
-            self.title="Procedure"
+            self.title="Completion Percentage"
             plt.ylabel('Percentage',fontsize=15)
             self.y1max = 1
             plt.ylim([0,1])
@@ -113,7 +129,7 @@ class figure(QWidget):
         self.interval=del2num(trade_interval)
 
     def update2(self,data,xrange):
-        return
+        # return
         plt.figure(self.fig_num)
         # print(len(data[0]))
         #self.clear()
@@ -123,15 +139,21 @@ class figure(QWidget):
         if self.type==figure.SCHED_PLOT:
             # print(data[0])
             # print(data[2])
+            plt.title(self.title+'('+self.sid.toUpper()+')', fontsize=20)
             xmax=max(del2num(xrange*60)+data[0][0],data[0][-1])
             xmin=max(data[0][0],data[0][-1]-del2num(xrange*60))
             plt.xlim([xmin-self.interval*0.2,xmax+self.interval*0.2])
+            self.ax1.xaxis.set_major_locator(self.xlocater)
+            self.ax1.xaxis.set_major_formatter(self.xformatter)
 
             plt.axes(self.ax1)
-            x1=[t-self.interval*0.1 for t in data[0]]
-            bar_sched = self.ax1.bar(x1, data[1], width=self.interval * 0.2, color=[1, 0.4, 0.6], label='Order Size')
+            x1=data[0]
+            plt.xlabel('Time', fontsize=15)
+            self.ax1.bar(x1, data[1], width=self.interval * 0.5, color=[1, 0.4, 0.6], label='Order Size',align='center')
+            plt.ylabel('Volume', fontsize=15)
             plt.ylim([0,max(data[1])*1.5])
             plt.axes(self.ax2)
+            plt.ylabel('Price', fontsize=15)
             minp=min(data[2])
             maxp=max(data[2])
             dlt=float(maxp-minp)
@@ -144,16 +166,22 @@ class figure(QWidget):
         elif self.type == figure.TOTAL_PLOT:
             # print(data[0])
             # print(data[2])
-
+            plt.title(self.title+'('+self.sid.toUpper()+')', fontsize=20)
+            plt.xlabel('Time', fontsize=15)
             xmax = max(del2num(xrange * 60) + data[0][0], data[0][-1])
             xmin = max(data[0][0], data[0][-1] - del2num(xrange * 60))
             plt.xlim([xmin - self.interval * 0.2, xmax + self.interval * 0.2])
             plt.axes(self.ax1)
+            plt.ylabel('Volume', fontsize=15)
 
-            x1 = [t - self.interval * 0.1 for t in data[0]]
-            bar_sched = self.ax1.bar(x1, data[1], width=self.interval * 0.2, color='c', label='Order Size')
+            self.ax1.xaxis.set_major_locator(self.xlocater)
+            self.ax1.xaxis.set_major_formatter(self.xformatter)
+
+            x1 = data[0]
+            self.ax1.bar(x1, data[1], width=self.interval * 0.5, color='c', label='Order Size',align='center')
             plt.ylim([0, max(data[1]) * 1.5])
             plt.axes(self.ax2)
+            plt.ylabel('Price', fontsize=15)
             minp = min(data[2])
             maxp = max(data[2])
             dlt = float(maxp - minp)
@@ -163,10 +191,12 @@ class figure(QWidget):
             # self.figure1.show()
             self.canvas1.draw()
         else:
-            if len(self.ax1.lines)>0:
-                self.ax1.lines.pop(0)
-            self.ax1.xaxis.set_major_locator(minutes)
-            self.ax1.xaxis.set_major_formatter(minute_formatter)
+            plt.title(self.title+'('+self.sid.toUpper()+')', fontsize=20)
+            plt.ylabel('Percentage', fontsize=15)
+            plt.xlabel('Time', fontsize=15)
+            plt.grid()
+            self.ax1.xaxis.set_major_locator(self.xlocater)
+            self.ax1.xaxis.set_major_formatter(self.xformatter)
             xmax = max(del2num(xrange * 60) + data[0][0], data[0][-1])
             xmin = data[0][0]
             plt.xlim([xmin - self.interval * 0.2, xmax + self.interval * 0.2])
@@ -180,37 +210,51 @@ class figure(QWidget):
         plt.figure(self.fig_num)
         plt.clf()
         self.init_figure()
-
-
-class plotter(QThread):
-    def __init__(self, parent=None):
-        super(plotter, self).__init__(parent)
-        self.plotting = False
-
-    def __del__(self):
-        self.plotting = False
-
-    def run(self):
-        self.exec_()
-
-    @pyqtSlot(figure, list, int)
-    def plotFunc(self, fig, data, xrange):
-        fig.update2(data, xrange)
+    
+class backend_caller(QObject):
+    def __init__(self,parent=None):
+        super(backend_caller,self).__init__(parent)
+    
+    @pyqtSlot(figure,list,int)
+    def plotFunc(self,fig,data,xrange):
+        fig.update2(data,xrange)
 
     @pyqtSlot(figure)
     def clearFig(self, fig):
         fig.clear()
 
-class console(QWidget):
-    def __init__(self,parent=None,stock='0',year=0,month=0,day=0,alg='TVWAP'):
+    @pyqtSlot(str,int,int)
+    def getSchedule(self,sid,ordersize,alg):
+        if hd.updateStock(str(sid))!=0:
+            self.sidNotExsist.emit()
+            return
+
+        trade_style=0  #not implemented yet
+        self.schedPrepared.emit(td.tradeStock(sid,int(ordersize),trade_style,alg))
+
+    schedPrepared = pyqtSignal(tuple)
+    sidNotExsist = pyqtSignal()
+
+class backend_thread(QThread):
+    def __init__(self, parent=None):
+        super(backend_thread, self).__init__(parent)
+
+    def __del__(self):
+        pass
+
+
+class console(QMainWindow):
+    server=backend_caller()
+    def __init__(self,parent=None):
         super(console,self).__init__(parent)
+        # self.statusBar().showMessage("asdf")
+        self.interval=50
+        self.trade_interval=60
+        self.set_speed_ratio(60)
         self.draw_layout()
         self.algs=['TWAP','VWAP(10 day)','VWAP(5 day)','VWAP(binary)','VWAP(exp)']
         self.set_alg(self.algs)
-        self.interval=50
-        self.trade_interval=60
-        self.init_canvas()
-        self.set_speed_ratio(3600)
+        self.init_param()
         self.init_timer(self.interval)
 
         self.readyFlag=False
@@ -226,6 +270,13 @@ class console(QWidget):
         self.text_sid.textEdited.connect(self.checkReady)
         self.text_ordersize.textEdited.connect(self.checkReady)
         self.text_alg.currentIndexChanged.connect(self.checkReady)
+        self.plot_thread=backend_thread()
+        # self.plot_thread.start()
+        console.server.moveToThread(self.plot_thread)
+        self.plotReq.connect(console.server.plotFunc)
+        self.getSchedReq.connect(console.server.getSchedule)
+        console.server.schedPrepared.connect(self.onSchedPrepared)
+        console.server.sidNotExsist.connect(self.onSidNotExsist)
 
         #debug
         self.text_sid.setText("sh601988")
@@ -246,17 +297,8 @@ class console(QWidget):
         self.tbView_rtinfo.setFixedWidth(600)
         self.tbView_rtinfo.setShowGrid(True)
         self.tbView_rtinfo.setModel(self.model)
-        # palette = QPalette()
-        # palette.setColor(QPalette.Background,QColor(190,190,190))
-        # self.tbView_rtinfo.setPalette(palette)
         self.tbView_rtinfo.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbView_rtinfo.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        # self.model.setItem(0,0,QStandardItem("0"))
-        # self.model.setItem(0, 1, QStandardItem(0))
-        # self.model.setItem(0, 2, QStandardItem(0))
-        # self.tbView_rtinfo.verticalHeader()
-        # self.tbView_rtinfo.horizontalHeader()
-        # self.tbView_rtinfo.show()
 
     def draw_layout(self):
         self.label_sid=QLabel("Stock ID:")
@@ -321,19 +363,19 @@ class console(QWidget):
 
         # self.figure1=plt.figure(1)
         # self.canvas_sched = figureCanvas(self.figure1)
-        self.canvas_sched=figure(tp=figure.SCHED_PLOT)
+        self.canvas_sched=figure(tp=figure.SCHED_PLOT,trade_interval=self.trade_interval)
         self.canvas_sched.setMaximumHeight(475)
         self.canvas_sched.setFixedWidth(800)
 
         # self.figure2=plt.figure(2)
         # self.canvas_rt = figureCanvas(self.figure2)
-        self.canvas_rt=figure(tp=figure.TOTAL_PLOT)
+        self.canvas_rt=figure(tp=figure.TOTAL_PLOT,trade_interval=self.trade_interval)
         self.canvas_rt.setMaximumHeight(475)
         self.canvas_rt.setFixedWidth(800)
 
         # self.figure3=plt.figure(3)
         # self.canvas_cdf=figureCanvas(self.figure3)
-        self.canvas_cdf=figure(tp=figure.CDF_PLOT)
+        self.canvas_cdf=figure(tp=figure.CDF_PLOT,trade_interval=self.trade_interval)
         self.canvas_cdf.setMaximumHeight(475)
         self.canvas_cdf.setFixedWidth(700)
 
@@ -347,7 +389,7 @@ class console(QWidget):
         self.vLayout_rtinfo=QVBoxLayout()
         self.vLayout_rtinfo.setAlignment(Qt.AlignCenter)
         self.vLayout_rtinfo.addStretch()
-        self.label_rtinfo=QLabel("Instant Information")
+        self.label_rtinfo=QLabel("Order Information")
         self.label_rtinfo.setAlignment(Qt.AlignCenter)
         self.label_rtinfo.setFont(font)
         self.vLayout_rtinfo.addWidget(self.label_rtinfo)
@@ -364,7 +406,12 @@ class console(QWidget):
 
         self.vline1=QSplitter()
         self.vline1.setFixedWidth(50)
-        self.mhLayout=QHBoxLayout(self)
+        self.mhLayout=QHBoxLayout()
+
+        cWidget=QWidget()
+        cWidget.setLayout(self.mhLayout)
+        # self.setLayout(self.mhLayout)
+        self.setCentralWidget(cWidget)
         self.mhLayout.addWidget(self.vline1)
         self.mhLayout.addLayout(self.mainLayout)
 
@@ -380,8 +427,8 @@ class console(QWidget):
         for alg in algs:
             self.text_alg.addItem(alg)
 
-    def init_canvas(self):
-        self.plot_thread=plotter()
+    def init_param(self):
+        # self.connect(self,SIGNAL("plotReq()"),self.plot_thread,SLOT("plotFunc()"))
         self.cur_sched_vol=0
         self.sched_vol=[]
         self.sched_time=[]
@@ -403,6 +450,11 @@ class console(QWidget):
         self.total_value=0
         self.issue_num=0
         self.model.removeRows(0,self.model.rowCount())
+
+    def init_canvas(self):
+        self.canvas_sched.clear()
+        self.canvas_rt.clear()
+        self.canvas_cdf.clear()
 
     def check_state(self):
         if self.readyFlag==True and self.runningFlag==False:
@@ -433,40 +485,34 @@ class console(QWidget):
 
     @pyqtSlot()
     def onButtonStartClicked(self):
+        if not os.path.exists("txtfile"):
+            os.mkdir("txtfile")
+        if not os.path.exists("volumefile"):
+            os.mkdir("volumefile")
+        if not os.path.exists("train_volumefile_line"):
+            os.mkdir("train_volumefile_line")
+        self.textBsr_summary.setText("")
         self.sched_data=None
-        self.init_canvas()
-        try:
-            (self.sched_data,self.total_data,self.trade_date)=self.getSechedule()
-        except e:
-            print(e)
-        i=0
-        for x in self.total_data:
-            if x[0]<"09:30:00":
-                i+=1
-            else:
-                break
-        self.total_data=self.total_data[i:]
-        # print(self.sched_data,self.trade_date)
-        self.year=int(self.trade_date.year)
-        self.month=int(self.trade_date.month)
-        self.day=int(self.trade_date.day)
-        # self.canvas_sched.clear()
-        # self.canvas_rt.clear()
-        # self.canvas_cdf.clear()
-        self.check_state()
-        self.canvas_sched.setSid(self.sid)
-        self.canvas_rt.setSid(self.sid)
-        self.canvas_cdf.setSid(self.sid)
+        self.init_param()
         self.plot_thread.start()
-        self.timer.start()
-        self.runningFlag=True
+        self.init_canvas()
+        self.getSchedReq.emit(str(self.sid),int(self.ordersize),self.alg)
+        self.total_data = None
+        self.runningFlag = True
+        self.check_state()
+        self.btn_stop.setEnabled(False)
+        self.statusBar().showMessage("The Schedule is Being Preparing...")
+
 
     @pyqtSlot()
     def onButtonStopClicked(self):
         # QMessageBox.information(self,"stop",'ok')
         self.timer.stop()
+        self.plot_thread.quit()
+        self.plot_thread.wait()
         self.runningFlag=False
         self.check_state()
+        self.statusBar().showMessage("Trade Has Been Stopped")
         QMessageBox.information(self,"Stopped","Trade Stopped!")
         self.update_summary()
 
@@ -516,8 +562,8 @@ class console(QWidget):
             self.total_vol.append(self.cur_total_vol)
             self.total_price.append(self.cur_total_price)
 
-            self.canvas_sched.update2([self.sched_time,self.sched_vol,self.sched_price],self.xrange)
-            self.canvas_rt.update2([self.sched_time,self.total_vol,self.sched_price],self.xrange)
+            self.plotReq.emit(self.canvas_sched,[self.sched_time,self.sched_vol,self.sched_price],self.xrange)
+            self.plotReq.emit(self.canvas_rt,[self.sched_time,self.total_vol,self.sched_price],self.xrange)
 
             self.cur_sched_vol=0
             self.cur_sched_price=0
@@ -525,7 +571,6 @@ class console(QWidget):
             self.cur_total_N=0
             self.cur_total_vol=0
             self.cur_total_price=0
-
 
         #if
         while self.idx[0]<len(self.sched_data) and time2sec(self.sched_data[self.idx[0]][0])<=self.total_time:
@@ -539,8 +584,11 @@ class console(QWidget):
             self.finished += float(self.sched_data[self.idx[0]][2])
             self.cdf_array.append(self.finished/int(self.ordersize))
             #t1=time.time()
-            self.canvas_cdf.update2([self.cdf_time,self.cdf_array],self.xrange*10)
-            #print(time.time()-t1)
+
+
+            #emit signal
+            self.plotReq.emit(self.canvas_cdf,[self.cdf_time,self.cdf_array],self.xrange*10)
+
             if self.finished>=float(self.ordersize):
                 self.onOrderFinished()
             self.total_value+=SHARE_PER_VOLUME*float(self.sched_data[self.idx[0]][1])*float(self.sched_data[self.idx[0]][2])
@@ -553,11 +601,48 @@ class console(QWidget):
             self.cur_total_price+=float(self.total_data[self.idx[1]][1])*float(self.total_data[self.idx[1]][2])
             self.idx[1]+=1
 
+    #define signals
+    # @pyqtSignal(figure,list,int)
+    plotReq=pyqtSignal(figure,list,int)
+    getSchedReq=pyqtSignal(str,int,int)
+
+    @pyqtSlot(list)
+    def onSchedPrepared(self,sched_data):
+        (self.sched_data, self.total_data, self.trade_date)=sched_data
+        i = 0
+        for x in self.total_data:
+            if x[0] < "09:30:00":
+                i += 1
+            else:
+                break
+        self.total_data = self.total_data[i:]
+        # print(self.sched_data,self.trade_date)
+        self.year = int(self.trade_date.year)
+        self.month = int(self.trade_date.month)
+        self.day = int(self.trade_date.day)
+        self.canvas_sched.setSid(self.sid)
+        self.canvas_rt.setSid(self.sid)
+        self.canvas_cdf.setSid(self.sid)
+        self.timer.start()
+        self.btn_stop.setEnabled(True)
+        self.statusBar().showMessage("Trade Is Being Performed")
+
+    @pyqtSlot()
+    def onSidNotExsist(self):
+        QMessageBox.warning(self,"Warning","Stock ID Not Exsist!")
+        self.runningFlag=False
+        self.check_state()
+
     @pyqtSlot()
     def onOrderFinished(self):
-        QMessageBox.information(self,"Information","Trade Finished!","OK")
         self.update_summary()
-        self.onButtonStopClicked()
+        self.timer.stop()
+        self.plot_thread.quit()
+        self.plot_thread.wait()
+        self.runningFlag = False
+        self.check_state()
+        self.update_summary()
+        QMessageBox.information(self,"Information","Trade Finished!","OK")
 
     def update_summary(self):
         summary=""
@@ -565,7 +650,10 @@ class console(QWidget):
         summary+="Trade Algorithm: %s\n"%self.algs[self.alg-1]
         summary+="Planned Volume: %s\n"%self.ordersize
         summary+="Performed Volume: %.0f\n"%self.finished
-        summary+="Average Price: %.2f\n"%(self.total_value/self.finished/SHARE_PER_VOLUME)
+        if self.finished>0:
+            summary+="Average Price: %.2f\n"%(self.total_value/self.finished/SHARE_PER_VOLUME)
+        else:
+            summary+="Average Price: 0.00\n"
         summary+="Total Value: %.2f\n"%self.total_value
         self.textBsr_summary.setText(summary)
 
@@ -584,156 +672,18 @@ class console(QWidget):
         self.model.item(self.issue_num, 5).setTextAlignment(Qt.AlignCenter)
         self.issue_num+=1
 
-    def getSechedule(self):
-        self.trade_data=hd.updateStock(str(self.sid))
-        self.trade_style=0  #not implemented yet
-        return td.tradeStock(self.sid,int(self.ordersize),self.trade_style,self.alg)
-
-    def misc(self, stock='0', year=0, month=0, day=0, alg='TVWAP'):
-        interval = 5
-        self.data = getRealtimeData(stock, year, month, day, interval=interval)
-        interval = delta2num(interval)
-        figure1 = plt.figure(1)  # 返回当前的figure
-        x = [ele[0] for ele in self.data]
-        y = [ele[1] for ele in self.data]
-
-        tm = datetime.datetime(year, month, day, 11, 30, 0)
-        ta = datetime.datetime(year, month, day, 13, 0, 0)
-        morningend = date2num(tm)
-        afternoonbegin = date2num(ta)
-        c = 0
-        x01 = []
-        x02 = []
-        y01 = []
-        y02 = []
-        for ele in x:
-            if ele <= morningend:
-                x01.append(ele)
-                y01.append(y[c])
-            elif ele >= afternoonbegin:
-                x02.append(ele)
-                y02.append(y[c])
-            c = c + 1
-
-        if alg == 'TVWAP':
-            ymax = max(y);
-            ymin = min(y)
-            x1 = [ele + interval * 0.1 for ele in x]
-            y1 = [ele[2] for ele in self.data]
-            s = sum(y1)
-            y1max = max(y1)
-            x2 = [ele + interval * 0.5 for ele in x]
-            # print(len(x2))
-            # y2 = getOrderSize(stock)
-            y2 = [ele * s / 10 for ele in y2]
-            y1max = max(y1max, max(y2))
-        elif alg == 'VWAP':
-            ymax = max(y);
-            ymin = min(y)
-            x1 = [ele + interval * 0.1 for ele in x]
-            y1 = [ele[2] for ele in self.data]
-            s = sum(y1)
-            y1max = max(y1)
-            x2 = [ele + interval * 0.5 for ele in x]
-            # print(len(x2))
-            y2 = self.__getOrderSize()
-        elif alg == 'TWAP':
-            ymax = max(y);
-            ymin = min(y)
-            x1 = [ele + interval * 0.1 for ele in x]
-            y1 = [ele[2] for ele in self.data]
-            s = sum(y1)
-            y1 = [ele for ele in y1]
-            y1max = max(y1)
-            x2 = [ele + interval * 0.5 for ele in x]
-            # print(len(x2))
-            y2 = []
-            for ele in range(len(y1)):
-                y2.append(s / len(y1) / 5)
-
-        # ratio=0.3
-        # y2 = [ele*sum(y1)*ratio for ele in y2]
-        ax1 = figure1.add_subplot(111)
-        ax1.xaxis.set_major_locator(minutes)
-        ax1.xaxis.set_major_formatter(minute_formatter)
-        plt.ylabel('Volume', fontsize=15)
-        plt.ylim([0, y1max * 1.5])
-        plt.xlabel('Time', fontsize=15)
-        ax2 = ax1.twinx()
-        if alg == 'TVWAP':
-            bar_history = ax1.bar(x1, y1, width=interval * 0.4, color='c', label='Historical Volume')
-        else:
-            bar_history = ax1.bar(x1, y1, width=interval * 0.4, color='c', label='Volume')
-        bar_order = ax1.bar(x2, y2, width=interval * 0.4, color=[1, 0.4, 0.6], label='Order Size')
-
-        line_price, = ax2.plot(x01, y01, color='b', label='Price')
-        ax2.plot(x02, y02, color='b')
-        plt.title('%s' % stock.upper(), fontsize=20)
-        plt.ylabel('Price', fontsize=15)
-        plt.ylim([ymin - 2 * (ymax - ymin), ymax + 0.25 * (ymax - ymin)])
-        figure1.autofmt_xdate()
-        plt.grid()
-        plt.legend(handles=(line_price, bar_history, bar_order), loc='upper right', ncol=3)
-        # plt.legend(handles=(bar_history,),bbox_to_anchor=(0.5,-0.25),loc='lower center')
-        plt.tight_layout()
-        # plt.autoscale(tight=True)
-        self.canvas1 = figureCanvas(figure1)
-        self.canvas1.draw()
-        self.toolbar1 = NavigationToolBar(self.canvas1, self)
-
-        layout = QHBoxLayout(self)
-        leftLayout = QVBoxLayout(self)
-        rightLayout = QVBoxLayout(self)
-        layout.addLayout(leftLayout)
-        # layout.addLayout(rightLayout)
-        leftLayout.addWidget(self.canvas1)
-        leftLayout.addWidget(self.toolbar1)
-        # rightLayout.addWidget(self.canvas2)
-        # rightLayout.addWidget(self.toolbar2)
-
-class cdf_graph(QWidget):
-    def __init__(self,parent=None,year=0,month=0,day=0,stock='0'):
-        super(cdf_graph,self).__init__(parent)
-
-        interval=5
-        self.data=getRealtimeData(year=year,month=month,day=day,stock=stock,interval=interval)
-        interval=delta2num(interval)
-        figure2 = plt.figure(2)
-        x3 = [ele[0] for ele in self.data]
-        #y3 = getOrderSize(stock)
-        y3=x3
-        for i in range(1,len(y3)):
-            y3[i]=y3[i]+y3[i-1]
-        y3=[ele/y3[-1] for ele in y3]
-        ax3=figure2.add_subplot(111)
-        ax3.xaxis.set_major_locator(minutes)
-        ax3.xaxis.set_major_formatter(minute_formatter)
-        line_percent=ax3.plot(x3,y3,'-D',label='Completion Percentage')
-        figure2.autofmt_xdate()
-        plt.grid()
-        plt.legend(loc='upper left')
-
-        plt.title('%s'%stock.upper(),fontsize=20)
-        plt.xlabel('Time',fontsize=20)
-        plt.ylabel('Completion Percentage',fontsize=15)
-
-        self.canvas2 = figureCanvas(figure2)
-        self.canvas2.draw()
-        self.toolbar2=NavigationToolBar(self.canvas2,self)
-
-        layout = QHBoxLayout(self)
-        rightLayout=QVBoxLayout(self)
-        layout.addLayout(rightLayout)
-        rightLayout.addWidget(self.canvas2)
-        rightLayout.addWidget(self.toolbar2)
-
 if __name__ == '__main__':
     # print(del2num(1))
-    year=2016;month=11;day=11;stock='sh601988'
+    if not os.path.exists("txtfile"):
+        os.mkdir("txtfile")
+    if not os.path.exists("volumefile"):
+        os.mkdir("volumefile")
+    if not os.path.exists("train_volumefile_line"):
+        os.mkdir("train_volumefile_line")
     app = QApplication(sys.argv)
-    ui = console(year=year,month=month,day=day,stock=stock,alg='TWAP')
+    ui = console()
     #ui2 = cdf_graph(year=year,month=month,day=day,stock=stock)
-    ui.setFixedSize(1920,1000)
+    ui.setFixedSize(1920,990)
     ui.move(0,0)
     ui.setWindowTitle('Trade Simulation')
     #ui2.setWindowTitle('Trade Simulation')
