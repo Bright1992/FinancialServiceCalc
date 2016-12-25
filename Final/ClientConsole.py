@@ -129,6 +129,9 @@ class figure(QWidget):
     def update2(self, data, xrange):
         plt.figure(self.fig_num)
         self.ax1.clear()
+        # print(ceil(xrange/20))
+        self.xlocater=MinuteLocator(byminute=range(0,60,int(ceil(xrange/20))))
+        self.xformatter=DateFormatter("%H:%M")
         if self.type != figure.CDF_PLOT:
             self.ax2.clear()
         if self.type == figure.SCHED_PLOT:
@@ -190,7 +193,7 @@ class figure(QWidget):
             plt.grid()
             self.ax1.xaxis.set_major_locator(self.xlocater)
             self.ax1.xaxis.set_major_formatter(self.xformatter)
-            xmax = max(del2num(xrange * 60) + data[0][0], data[0][-1])
+            xmax = max(del2num(xrange * 60) + data[0][0],data[0][-1])
             xmin = data[0][0]
             plt.xlim([xmin - self.interval * 0.2, xmax + self.interval * 0.2])
             plt.ylim([0, 1])
@@ -210,9 +213,6 @@ class backend_caller(QObject):
 
     @pyqtSlot(figure, list, int)
     def plotFunc(self, fig, data, xrange):
-        # if fig.type == figure.CDF_PLOT:
-        #     print([str(num2date(x)) for x in data[0]], len(data[0]))
-            # return
         fig.update2(data, xrange)
 
     @pyqtSlot(figure)
@@ -503,13 +503,13 @@ class console(QMainWindow):
     def onButtonStopClicked(self):
         # QMessageBox.information(self,"stop",'ok')
         self.timer.stop()
-        self.server_thread.quit()
-        self.server_thread.wait()
         self.runningFlag = False
         self.check_state()
         self.statusBar().showMessage("Trade Has Been Stopped")
-        QMessageBox.information(self, "Stopped", "Trade Stopped!")
         self.update_summary()
+        QMessageBox.information(self, "Stopped", "Trade Stopped!")
+        self.server_thread.quit()
+        self.server_thread.wait()
 
     @pyqtSlot()
     def checkReady(self):
@@ -557,12 +557,19 @@ class console(QMainWindow):
             self.sched_price.append(self.cur_sched_price)
             self.total_vol.append(self.cur_total_vol)
             self.total_price.append(self.cur_total_price)
-            self.cdf_array.append(self.finished/float(self.ordersize))
+            self.cdf_array.append(self.finished / float(self.ordersize))
+
+            sched_data = [self.sched_time, self.sched_vol, self.sched_price]
+            sched_data_s = [d[max(0, len(d) - self.xrange * 60 / self.canvas_sched.interval):] for d in sched_data]
+            total_data = [self.sched_time, self.total_vol, self.sched_price]
+            total_data_s = [d[max(0, len(d) - self.xrange * 60 / self.canvas_rt.interval):] for d in total_data]
+            cdf_data = [self.sched_time, self.cdf_array]
+            cdf_data_s = [d[max(0, len(d) - self.xrange * 10 * 60 / self.canvas_cdf.interval):] for d in cdf_data]
 
             # emit signals
-            self.plotReq.emit(self.canvas_sched, [self.sched_time, self.sched_vol, self.sched_price], self.xrange)
-            self.plotReq.emit(self.canvas_rt, [self.sched_time, self.total_vol, self.sched_price], self.xrange)
-            self.plotReq.emit(self.canvas_cdf, [self.sched_time, self.cdf_array], self.xrange * 10)
+            self.plotReq.emit(self.canvas_sched, sched_data_s, self.xrange)
+            self.plotReq.emit(self.canvas_rt, total_data_s, self.xrange)
+            self.plotReq.emit(self.canvas_cdf, cdf_data_s, self.xrange * 10)
 
             self.cur_sched_vol = 0
             self.cur_sched_price = 0
@@ -592,7 +599,7 @@ class console(QMainWindow):
                 self.onOrderFinished()
             self.total_value += SHARE_PER_VOLUME * float(self.sched_data[self.idx[0]][1]) * float(
                 self.sched_data[self.idx[0]][2])
-            self.update_list()
+            self.update_tbview()
             self.idx[0] += 1
 
         while self.idx[1] < len(self.total_data) and time2sec(self.total_data[self.idx[1]][0]) <= self.total_time:
@@ -637,12 +644,12 @@ class console(QMainWindow):
     def onOrderFinished(self):
         self.update_summary()
         self.timer.stop()
+        QMessageBox.information(self, "Information", "Trade Finished!", "OK")
         self.server_thread.quit()
         self.server_thread.wait()
         self.runningFlag = False
         self.check_state()
         self.update_summary()
-        QMessageBox.information(self, "Information", "Trade Finished!", "OK")
 
     def closeEvent(self, *args, **kwargs):
         self.timer.stop()
@@ -650,6 +657,14 @@ class console(QMainWindow):
         self.server_thread.wait()
 
     def update_summary(self):
+        xrange2 = self.sched_time[-1] - self.sched_time[0] + self.trade_interval / 3600.0 / 24
+        xrange2 = xrange2 * 24 * 60
+        sched_data = [self.sched_time, self.sched_vol, self.sched_price]
+        total_data = [self.sched_time, self.total_vol, self.sched_price]
+        cdf_data = [self.sched_time, self.cdf_array]
+        self.plotReq.emit(self.canvas_sched, sched_data, xrange2)
+        self.plotReq.emit(self.canvas_rt, total_data, xrange2)
+        self.plotReq.emit(self.canvas_cdf, cdf_data, xrange2)
         summary = ""
         summary += "Stock ID: %s\n" % self.sid.toUpper()
         summary += "Trade Algorithm: %s\n" % self.algs[self.alg - 1]
@@ -662,14 +677,14 @@ class console(QMainWindow):
         summary += "Total Value: %.2f\n" % self.total_value
         self.textBsr_summary.setText(summary)
 
-    def update_list(self):
+    def update_tbview(self):
         self.model.setItem(self.issue_num, 0, QStandardItem("%s" % self.sched_data[self.idx[0]][0]))
         self.model.setItem(self.issue_num, 1, QStandardItem("%d" % int(self.sched_data[self.idx[0]][2])))
         self.model.setItem(self.issue_num, 2,
                            QStandardItem("%d" % (int(self.sched_data[self.idx[0]][2]) * SHARE_PER_VOLUME)))
         self.model.setItem(self.issue_num, 3, QStandardItem("%.2f" % float(self.sched_data[self.idx[0]][1])))
         self.model.setItem(self.issue_num, 4, QStandardItem("%.2f" % (
-        float(self.sched_data[self.idx[0]][1]) * int(self.sched_data[self.idx[0]][2]) * SHARE_PER_VOLUME)))
+            float(self.sched_data[self.idx[0]][1]) * int(self.sched_data[self.idx[0]][2]) * SHARE_PER_VOLUME)))
         self.model.setItem(self.issue_num, 5, QStandardItem("%d/%d" % (int(self.finished), int(self.ordersize))))
         self.model.item(self.issue_num, 0).setTextAlignment(Qt.AlignCenter)
         self.model.item(self.issue_num, 1).setTextAlignment(Qt.AlignCenter)
@@ -677,6 +692,7 @@ class console(QMainWindow):
         self.model.item(self.issue_num, 3).setTextAlignment(Qt.AlignCenter)
         self.model.item(self.issue_num, 4).setTextAlignment(Qt.AlignCenter)
         self.model.item(self.issue_num, 5).setTextAlignment(Qt.AlignCenter)
+        self.tbView_rtinfo.verticalScrollBar().setSliderPosition(self.tbView_rtinfo.verticalScrollBar().maximum())
         self.issue_num += 1
 
 
