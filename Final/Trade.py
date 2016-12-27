@@ -127,12 +127,12 @@ def trading_TWAP(trading_data, trading_nums, stockID, buy_num, trading_style):
     total_price = 0
     for i in range(0, trading_nums):
         total_price += (float)(trading_data[i][1])
-    acutal_TWAP = total_price / trading_nums
+    actual_TWAP = total_price / trading_nums
     # print total_cost
     print "Our TWAP is: " + (str)((float)(total_cost) / buy_num / 100)
-    print "Acutal TWAP is " + (str)(acutal_TWAP)
+    print "Acutal TWAP is " + (str)(actual_TWAP)
     # print(sched_pool)
-    return sched_pool
+    return (sched_pool,actual_TWAP)
 
 
 def tradeStock(stockID, buy_num, trading_style, alg):
@@ -206,21 +206,22 @@ def tradeStock(stockID, buy_num, trading_style, alg):
     #print "after 5 seconds, we will start TWAP"
     #time.sleep(3)
     if alg==1:  #TWAP
-        return (trading_TWAP(trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date)
+        ret=trading_TWAP(trading_data, trading_count, stockID, buy_num, trading_style)
+        return (ret[0],trading_data,date,ret[1])
     # print "after 5 seconds, we will start VWAP_10_day_train"
     # time.sleep(3)
     elif alg==2:    #VWAP_10
-        return (trading_VWAP(train_file_dir_1, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date)
+        return (trading_VWAP(train_file_dir_1, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date,VWAP)
     # print "after 5 seconds, we will start VWAP_5_day_train"
     # time.sleep(3)
     elif alg==3:    #VWAP_5
-        return (trading_VWAP(train_file_dir_2, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date)
+        return (trading_VWAP(train_file_dir_2, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date,VWAP)
     # print "after 5 seconds, we will start VWAP_binary"
     # time.sleep(3)
     elif alg==4:    #VWAP_bin
-        return (trading_VWAP(train_file_dir_3, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date)
+        return (trading_VWAP(train_file_dir_3, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date,VWAP)
     # print "after 5 seconds, we will start VWAP_exp"
     # time.sleep(3)
     elif alg==5:    #VWAP_exp
-        return (trading_VWAP(train_file_dir_4, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date)
+        return (trading_VWAP(train_file_dir_4, trading_data, trading_count, stockID, buy_num, trading_style),trading_data,date,VWAP)
     return None

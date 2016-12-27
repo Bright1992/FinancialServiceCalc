@@ -9,19 +9,13 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 from matplotlib.dates import date2num, num2date
 from datetime import datetime
 import matplotlib.pyplot as plt
-import sys
-
 from matplotlib.dates import DateFormatter
 from matplotlib.dates import DayLocator, MinuteLocator, SecondLocator
 from matplotlib.dates import MonthLocator
 
-from HistoricalData import updateStock
 import Trade as td, HistoricalData as hd
-from getRealtimeData import getRealtimeData, delta2num
 from Trade import *
-import time
 from const import *
-from PyQt4.QtSql import *
 
 alldays = DayLocator()
 months = MonthLocator()
@@ -129,8 +123,7 @@ class figure(QWidget):
     def update2(self, data, xrange):
         plt.figure(self.fig_num)
         self.ax1.clear()
-        # print(ceil(xrange/20))
-        self.xlocater=MinuteLocator(byminute=range(0,60,int(ceil(xrange/20))))
+        self.xlocater=MinuteLocator(byminute=range(0,60,int(ceil(float(xrange)/20))))
         self.xformatter=DateFormatter("%H:%M")
         if self.type != figure.CDF_PLOT:
             self.ax2.clear()
@@ -213,7 +206,10 @@ class backend_caller(QObject):
 
     @pyqtSlot(figure, list, int)
     def plotFunc(self, fig, data, xrange):
+        print(xrange)
         fig.update2(data, xrange)
+        if len(data)==4:
+            self.orderFinished.emit()
 
     @pyqtSlot(figure)
     def clearFig(self, fig):
@@ -230,6 +226,7 @@ class backend_caller(QObject):
 
     schedPrepared = pyqtSignal(tuple)
     sidNotExsist = pyqtSignal()
+    orderFinished = pyqtSignal()
 
 
 class backend_thread(QThread):
@@ -241,8 +238,9 @@ class backend_thread(QThread):
 
 
 class console(QMainWindow):
+    STOPPED=1
+    FINISHED=2
     server = backend_caller()
-
     def __init__(self, parent=None):
         super(console, self).__init__(parent)
         self.interval = 50
@@ -273,6 +271,7 @@ class console(QMainWindow):
         self.getSchedReq.connect(console.server.getSchedule)
         console.server.schedPrepared.connect(self.onSchedPrepared)
         console.server.sidNotExsist.connect(self.onSidNotExsist)
+        console.server.orderFinished.connect(self.showFinMessage)
 
         # debug
         self.text_sid.setText("sh601988")
@@ -290,11 +289,13 @@ class console(QMainWindow):
         self.model.setHorizontalHeaderItem(5, QStandardItem("Finished"))
         self.tbView_rtinfo = QTableView()
         self.tbView_rtinfo.setFixedHeight(400)
-        self.tbView_rtinfo.setFixedWidth(600)
+        self.tbView_rtinfo.setFixedWidth(550)
         self.tbView_rtinfo.setShowGrid(True)
         self.tbView_rtinfo.setModel(self.model)
         self.tbView_rtinfo.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbView_rtinfo.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        # self.model.resizeColumnsToContents()
+        self.tbView_rtinfo.horizontalHeader().setResizeMode(QHeaderView.ResizeToContents)
 
     def draw_layout(self):
         self.label_sid = QLabel("Stock ID:")
@@ -501,15 +502,18 @@ class console(QMainWindow):
 
     @pyqtSlot()
     def onButtonStopClicked(self):
-        # QMessageBox.information(self,"stop",'ok')
         self.timer.stop()
+        xrange2 = self.sched_time[-1] - self.sched_time[0] + self.trade_interval / 3600.0 / 24
+        xrange2 = xrange2 * 24 * 60
+        sched_data = [self.sched_time, self.sched_vol, self.sched_price]
+        total_data = [self.sched_time, self.total_vol, self.sched_price]
+        cdf_data = [self.sched_time, self.cdf_array, 0, 0]
+        self.plotReq.emit(self.canvas_sched, sched_data, xrange2)
+        self.plotReq.emit(self.canvas_rt, total_data, xrange2)
+        self.plotReq.emit(self.canvas_cdf, cdf_data, xrange2)
         self.runningFlag = False
         self.check_state()
-        self.statusBar().showMessage("Trade Has Been Stopped")
-        self.update_summary()
-        QMessageBox.information(self, "Stopped", "Trade Stopped!")
-        self.server_thread.quit()
-        self.server_thread.wait()
+        self.state = console.STOPPED
 
     @pyqtSlot()
     def checkReady(self):
@@ -615,7 +619,7 @@ class console(QMainWindow):
 
     @pyqtSlot(list)
     def onSchedPrepared(self, sched_data):
-        (self.sched_data, self.total_data, self.trade_date) = sched_data
+        (self.sched_data, self.total_data, self.trade_date,self.WAP) = sched_data
         i = 0
         for x in self.total_data:
             if x[0] < "09:30:00":
@@ -642,14 +646,33 @@ class console(QMainWindow):
 
     @pyqtSlot()
     def onOrderFinished(self):
-        self.update_summary()
         self.timer.stop()
-        QMessageBox.information(self, "Information", "Trade Finished!", "OK")
-        self.server_thread.quit()
-        self.server_thread.wait()
+        xrange2 = self.sched_time[-1] - self.sched_time[0] + self.trade_interval / 3600.0 / 24
+        xrange2 = xrange2 * 24 * 60
+        sched_data = [self.sched_time, self.sched_vol, self.sched_price]
+        total_data = [self.sched_time, self.total_vol, self.sched_price]
+        cdf_data = [self.sched_time, self.cdf_array, 0, 0]
+        self.plotReq.emit(self.canvas_sched, sched_data, xrange2)
+        self.plotReq.emit(self.canvas_rt, total_data, xrange2)
+        self.plotReq.emit(self.canvas_cdf, cdf_data, xrange2)
         self.runningFlag = False
         self.check_state()
-        self.update_summary()
+        self.state = console.FINISHED
+
+    @pyqtSlot()
+    def showFinMessage(self):
+        if self.state==console.STOPPED:
+            QMessageBox.information(self, "Stopped", "Trade Stopped!")
+            self.statusBar().showMessage("Trade Has Been Stopped")
+            self.server_thread.quit()
+            self.server_thread.wait()
+            self.update_summary()
+        else:
+            QMessageBox.information(self, "Finish", "Trade Finished!", "OK")
+            self.statusBar().showMessage("Trade Has Been Finished")
+            self.server_thread.quit()
+            self.server_thread.wait()
+            self.update_summary()
 
     def closeEvent(self, *args, **kwargs):
         self.timer.stop()
@@ -657,24 +680,17 @@ class console(QMainWindow):
         self.server_thread.wait()
 
     def update_summary(self):
-        xrange2 = self.sched_time[-1] - self.sched_time[0] + self.trade_interval / 3600.0 / 24
-        xrange2 = xrange2 * 24 * 60
-        sched_data = [self.sched_time, self.sched_vol, self.sched_price]
-        total_data = [self.sched_time, self.total_vol, self.sched_price]
-        cdf_data = [self.sched_time, self.cdf_array]
-        self.plotReq.emit(self.canvas_sched, sched_data, xrange2)
-        self.plotReq.emit(self.canvas_rt, total_data, xrange2)
-        self.plotReq.emit(self.canvas_cdf, cdf_data, xrange2)
         summary = ""
         summary += "Stock ID: %s\n" % self.sid.toUpper()
         summary += "Trade Algorithm: %s\n" % self.algs[self.alg - 1]
         summary += "Planned Volume: %s\n" % self.ordersize
         summary += "Performed Volume: %.0f\n" % self.finished
         if self.finished > 0:
-            summary += "Average Price: %.2f\n" % (self.total_value / self.finished / SHARE_PER_VOLUME)
+            summary += "Average Price: %.2f\n" % (self.total_value / self.finished)
         else:
             summary += "Average Price: 0.00\n"
         summary += "Total Value: %.2f\n" % self.total_value
+        summary += "Actual VWAP/TWAP: %.2f\n"%self.WAP
         self.textBsr_summary.setText(summary)
 
     def update_tbview(self):
